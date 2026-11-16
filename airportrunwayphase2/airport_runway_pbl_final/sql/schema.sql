@@ -1,0 +1,56 @@
+CREATE DATABASE IF NOT EXISTS airport_runway_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE airport_runway_db;
+
+CREATE TABLE IF NOT EXISTS flights (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  flight_number VARCHAR(20) NOT NULL UNIQUE,
+  arrival_time DATETIME NOT NULL,
+  flight_type ENUM('DOMESTIC','INTERNATIONAL','CARGO','MEDICAL') NOT NULL DEFAULT 'DOMESTIC',
+  priority ENUM('LOW','NORMAL','HIGH','EMERGENCY') NOT NULL DEFAULT 'NORMAL',
+  status ENUM('WAITING','IN_PROGRESS','COMPLETED','CANCELLED') NOT NULL DEFAULT 'WAITING',
+  required_runway_m INT NOT NULL DEFAULT 1800,
+  estimated_duration_min INT NOT NULL DEFAULT 30,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_flight_queue(status, priority, arrival_time),
+  CHECK (required_runway_m BETWEEN 500 AND 6000),
+  CHECK (estimated_duration_min BETWEEN 5 AND 240)
+);
+
+CREATE TABLE IF NOT EXISTS runways (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  runway_name VARCHAR(40) NOT NULL UNIQUE,
+  length_m INT NOT NULL,
+  status ENUM('AVAILABLE','OCCUPIED','MAINTENANCE') NOT NULL DEFAULT 'AVAILABLE',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (length_m BETWEEN 500 AND 6000)
+);
+
+CREATE TABLE IF NOT EXISTS allocations (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  flight_id BIGINT UNSIGNED NOT NULL,
+  runway_id BIGINT UNSIGNED NOT NULL,
+  start_time DATETIME NOT NULL,
+  end_time DATETIME NULL,
+  status ENUM('ACTIVE','COMPLETED','CANCELLED') NOT NULL DEFAULT 'ACTIVE',
+  CONSTRAINT fk_allocation_flight FOREIGN KEY (flight_id) REFERENCES flights(id),
+  CONSTRAINT fk_allocation_runway FOREIGN KEY (runway_id) REFERENCES runways(id),
+  INDEX idx_alloc_status(status, start_time),
+  INDEX idx_alloc_runway_active(runway_id, status)
+);
+
+CREATE TABLE IF NOT EXISTS activity_log (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  event_type VARCHAR(40) NOT NULL,
+  message VARCHAR(500) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_activity_created(created_at)
+);
+
+INSERT IGNORE INTO runways(runway_name,length_m,status) VALUES
+('Runway A',3600,'AVAILABLE'),('Runway B',3000,'AVAILABLE'),('Runway C',2400,'AVAILABLE');
+
+INSERT IGNORE INTO flights(flight_number,arrival_time,flight_type,priority,status,required_runway_m,estimated_duration_min) VALUES
+('AI-201',NOW() - INTERVAL 18 MINUTE,'DOMESTIC','NORMAL','WAITING',1800,25),
+('AI-404',NOW() - INTERVAL 12 MINUTE,'INTERNATIONAL','HIGH','WAITING',2800,35),
+('MED-911',NOW() - INTERVAL 7 MINUTE,'MEDICAL','EMERGENCY','WAITING',2200,20),
+('6E-330',NOW() - INTERVAL 3 MINUTE,'DOMESTIC','NORMAL','WAITING',1800,30);
